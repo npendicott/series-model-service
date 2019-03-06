@@ -174,3 +174,5 @@ fabric.properties
 keyfile.key
 certfile.pem
 
+# PyCharm
+.idea
