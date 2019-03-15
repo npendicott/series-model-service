@@ -29,28 +29,53 @@ class TimeSeriesSample:
     categorical_features = None
 
     # TODO: If index_key is None, check the actual frame index?
-    def __init__(self, base, index_key, categorical_features=None, date_fmt_str="%Y-%m-%d %H:%M:%S"):
+    def __init__(self, base, index_key=None, date_fmt_str="%Y-%m-%d %H:%M:%S", categorical_features=None):
         """
-        Initialize the Sample, with a provided index_key. Specify the categorical_features, and the date_fmt_str
-        to be used by the datetime.strptime function.
+        Initialize the Sample from a base
+        index_key: if it is filled in, will take the corrispodong series as index. parses with the date_fmt_str
+        and datetime.strptime function.
+
+        categorical_features: non-continuous features
         """
 
         self.base = base  # TODO: DataFrame, or NumPy Array?
 
-        try:
-            index_series = self.base[index_key]
-        except KeyError:
-            raise KeyError("Index \"{0}\" not found!".format(index_key))
+        if base.index is None:
+            raise TypeError("Dataframe needs an index!")
 
-        if not isinstance(index_series[0], datetime):
-            try:
-                index_series = index_series.apply(lambda x: datetime.strptime(x, date_fmt_str))
-            except TypeError:
-                raise TypeError("Cannot parse datetime index at \"{0}\".".format(index_key))
-            except IndexError:
-                raise IndexError("Index series as nothing at [0]!")
+        if not isinstance(base.index[0], datetime):
+                raise TypeError("Index must be datetime")
+        # May need to raise this
+        # except IndexError:
+        #     raise IndexError("Index series as nothing at [0]!")
 
-        self.base.set_index(index_series, inplace=True) # TODO: Do we drop the "index" series?
+
+        # OLD
+        # At first, I tried to parse in constructor. Now I am just checking
+        # Set the index
+        # if index_key is not None:
+        #     try:
+        #         index_series = self.base[index_key]
+        #     except KeyError:
+        #         raise KeyError("Index \"{0}\" not found!".format(index_key))
+        #
+        #     self.base.set_index(index_series, inplace=True) # TODO: Do we drop the "index" series?
+        #
+        # # Datetime Check
+        # if not isinstance(self.base.index[0], datetime):
+        #     try:
+        #         # index_series = self.base.index.apply(lambda x: datetime.strptime(x, date_fmt_str))  # Apply
+        #         new_index = [datetime.strptime(dt, date_fmt_str) for dt in self.base.index]
+        #         self.base.set_index(new_index)
+        #         # TODO: KeyError: datetime.datetime(2012, 4, 13, 0, 0)
+        #
+        #     except TypeError:
+        #         raise TypeError("Cannot parse datetime index at \"{0}\".".format(index_key))
+        #     except IndexError:
+        #         raise IndexError("Index series as nothing at [0]!")
+        #
+        #     self.base.set_index(index_series, inplace=True) # TODO: Do we drop the "index" series?
+        #
 
         # # TODO: Right now, features are either "categorical" or not. What other classifications are needed?
         if categorical_features is not None:
@@ -136,7 +161,9 @@ class TimeSeriesSample:
 
         # Just need datetime.weekday for #
         # self.base['day_of_week_class'] = self.base[self.index].apply(datetime.weekday)
-        self.base['day_of_week_class'] = self.base.index.values.apply(datetime.weekday)
+
+        self.base['day_of_week_class'] = [datetime.weekday(ts) for ts in self.base.index.values]
+
 
     def weekend_weekday_class(self):
         """Generate class for weekend_weekday_class. 0 is weekday."""
