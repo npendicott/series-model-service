@@ -1,6 +1,6 @@
 import numpy as np
 # import pandas
-from pandas import Series
+from pandas import Series, DataFrame, DatetimeIndex
 from datetime import datetime
 from statsmodels.tsa.stattools import adfuller
 from statsmodels.tsa.seasonal import seasonal_decompose
@@ -12,39 +12,90 @@ from model.ryo_analysis import kpss_test, quick_autocorr
 
 
 # TODO: Inherit from df, so df calls go to base?
-class TimeSeriesSample:
-    """An object for holding time series data, for the purpose of data analysis and modeling."""
+class TimeSeriesSample(DataFrame):
+    """ An object for holding time series data, for the purpose of data analysis and modeling.
+    Right now, trying to subclass DataFrame. According to pandas, there may be better ways.
 
+    http://pandas.pydata.org/pandas-docs/stable/development/extending.html#extending-subclassing-pandas
+    http://pandas.pydata.org/pandas-docs/stable/development/extending.html#extending-register-accessors
+
+    This is a good example apparently: https://github.com/geopandas/geopandas/blob/master/geopandas/geodataframe.py
+    """
     # Base Dataframe
     # TODO: How do we deal with 'split' stuff? 'base' will be full until the split, then will only be
     #  the train set. 'base_valid' will be only be the validation set. Any transform over the full set will need to
     #  operate over the full set, but will also need to preserve the original split.
     #  possibility: with some decorator, merge the sets and save the split index, then re-split. Could just save the
     #  percent, but that seems less precise?
-    base = None
-    base_valid = None
 
-    index = None  # Index of the sample, should probably be a time index
-    train_test_split_index = None
+    # temporary properties
+    # _internal_names = DataFrame._internal_names + ['internal_cache']
+    # _internal_names_set = set(_internal_names)
+
+    # normal properties
+    _metadata = [
+        'datetime_index',
+        'categorical_features',
+        'validation_split_index',
+        'validation_set',
+    ]
+
     categorical_features = None
+    validation_split_index = None
+    validation_set = None
+
+    @property
+    def _constructor(self):
+        return TimeSeriesSample
+
+    # base = None
+    # base_valid = None
+    #
+    # index = None  # Index of the sample, should probably be a time index
+    # train_test_split_index = None
+    # categorical_features = None
 
     # TODO: If index_key is None, check the actual frame index?
-    def __init__(self, base, index_key=None, date_fmt_str="%Y-%m-%d %H:%M:%S", categorical_features=None):
+    # def __init__(self, data, index, date_fmt_str="%Y-%m-%d %H:%M:%S", categorical_features=None):
+    def __init__(self, *args, **kwargs): #data, index=None, categorical_features=None):
         """
-        Initialize the Sample from a base
-        index_key: if it is filled in, will take the corrispodong series as index. parses with the date_fmt_str
-        and datetime.strptime function.
-
-        categorical_features: non-continuous features
+        Initialize the sample dataframe, check for proper indexing.
+        Will also do a validation split, if valid_percent is provided
         """
 
-        self.base = base  # TODO: DataFrame, or NumPy Array?
+        # Filter added args that could be in constructor
+        categorical_features = kwargs.pop('categorical_features', None)
+        valid_percent = kwargs.pop('valid_percent', None)  # TODO: Impliment
 
-        if base.index is None:
-            raise TypeError("Dataframe needs an index!")
+        # IMPORTANT: So here, we are pretty much creating two indices, a datetime and an int range.
+        # Pandas has some support for multiple indices, but the whole [0][1] is not my fave.
+        # So, I guess the choice here is: do we maintain multiple indices??
 
-        if not isinstance(base.index[0], datetime):
-                raise TypeError("Index must be datetime")
+        dts = DatetimeIndex(kwargs.pop('index', None))
+        self.datetime_index = dts
+        # TODO: datetime check
+
+        self.categorical_features = categorical_features
+
+        # Sooo... everything before or after super? Mixx? -> what can be before, should be before, reduce deps
+        super(TimeSeriesSample, self).__init__(*args, **kwargs)
+
+        if valid_percent is not None:
+            self.valid_split(valid_percent)
+
+        # Checks
+        # TODO: Easier to just check the super, but validating args will cause more efficient faulure
+        # if data.index is None and index is None:
+        #     raise TypeError("Dataframe needs an index!")
+        #
+        # if not isinstance(base.index[0], datetime):
+        #         raise TypeError("Index must be datetime")
+        #
+        # # # TODO: Right now, features are either "categorical" or not. What other classifications are needed?
+        # if categorical_features is not None:
+        #     self.categorical_features = categorical_features
+        # if not isinstance(base.index[0], datetime):
+        #         raise TypeError("Index must be datetime")
         # May need to raise this
         # except IndexError:
         #     raise IndexError("Index series as nothing at [0]!")
@@ -77,27 +128,16 @@ class TimeSeriesSample:
         #     self.base.set_index(index_series, inplace=True) # TODO: Do we drop the "index" series?
         #
 
-        # # TODO: Right now, features are either "categorical" or not. What other classifications are needed?
-        if categorical_features is not None:
-            self.categorical_features = categorical_features
-
-    # Train/Test/Validation Split
-    def train_test_split(self, valid_percent):
+    def valid_split(self, percent):
         """
         Splits off last valid_percent of the data to a validation set. Percent will come from last index of the
         array.
         """
 
-        if self.base_valid is not None:
+        if self.validation_set is not None:
             pass  # TODO: Check for percent/base_valid? then rejoin?
 
-        # Base
-        if self.base is not None:
-            self.base, self.base_valid = self._split_frame(self.base, valid_percent)
-
-    @staticmethod
-    def _split_frame(frame, percent):
-        size = len(frame.index)
+        size = len(self.index)
 
         if percent >= 100 or percent <= 0:
             raise ValueError("{0} is not a valid percent for train/test split")
@@ -110,9 +150,14 @@ class TimeSeriesSample:
             factor = (1 - percent) / 100
 
         split_index = int(size * factor)
-        train, validate = frame[0:split_index], frame[split_index:]
 
-        return train, validate
+        self.validation_split_index = split_index
+        self.validation_set = self[split_index:]
+
+        # drop_array = [i for i in range(split_index, size)]  # Debug, maybe remove
+        drop_array = [self[i] for i in range(split_index, size)]
+
+        self.drop([i for i in range(split_index, size)], inplace=True)
 
     # TODO: Decorators: Apply on full set vs train/test, apply on quantitative/vs cat/qual
     # Decorator funcs?? For splitting and rejoining, if necessary.
@@ -321,16 +366,8 @@ class TimeSeriesSample:
 
         return r_sqr
 
-    # def print(self):
-    #     # Base
-    #     print("Base: ")
-    #     print(self.base.describe())
-    #     print(self.base.head())
-    #     print(self.base.tail())
-    #     print()
-    #
-    #     # Base Valid
-    #     print("Base Validation: ")
-    #     print(self.base_valid.describe())
-    #     print(self.base_valid[self.index])
-    #     print()
+    def print(self):
+        print(self.tail())
+        print("Length: {0}".format(len(self)))
+        # print(self.train_test_split_index)
+        print("Categorical Features: {0}".format(self.categorical_features))
