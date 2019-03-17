@@ -4,7 +4,8 @@ from datetime import datetime
 
 
 class EnergyService:
-        ENERGY_URL = 'http://192.168.0.24:9090'
+        # ENERGY_URL = 'http://192.168.0.24:9090'
+        ENERGY_URL = 'http://localhost:9090'
 
         date_fmt_str = "%Y-%m-%dT%H:%M:%SZ"
 

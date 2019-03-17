@@ -35,10 +35,14 @@ class TimeSeriesSample(DataFrame):
     # normal properties
     _metadata = [
         'datetime_index',
+        # 'dt_index',
+
         'categorical_features',
         'validation_split_index',
         'validation_set',
     ]
+
+    datetime_index = None
 
     categorical_features = None
     validation_split_index = None
@@ -56,24 +60,37 @@ class TimeSeriesSample(DataFrame):
     # categorical_features = None
 
     # TODO: If index_key is None, check the actual frame index?
-    # def __init__(self, data, index, date_fmt_str="%Y-%m-%d %H:%M:%S", categorical_features=None):
     def __init__(self, *args, **kwargs): #data, index=None, categorical_features=None):
         """
         Initialize the sample dataframe, check for proper indexing.
         Will also do a validation split, if valid_percent is provided
         """
-
-        # Filter added args that could be in constructor
+        # TODO: TEST Doesnt throw arg error
+        # Unpack RYO Args
         categorical_features = kwargs.pop('categorical_features', None)
         valid_percent = kwargs.pop('valid_percent', None)  # TODO: Impliment
+        datetime_index = kwargs.pop('datetime_index', None)
+
 
         # IMPORTANT: So here, we are pretty much creating two indices, a datetime and an int range.
         # Pandas has some support for multiple indices, but the whole [0][1] is not my fave.
         # So, I guess the choice here is: do we maintain multiple indices??
+        # TODO: DatetimeIndex Throwing freq error
+        # TODO: Sometimes, valid percent line 172 drops us in the constructor, and we are looking for a dti
+        if datetime_index is not None:
+            self.datetime_index = datetime_index
+            self.datetime_index = [datetime.strptime(dt, "%Y-%m-%dT%H:%M:%SZ") for dt in datetime_index]
 
-        dts = DatetimeIndex(kwargs.pop('index', None))
-        self.datetime_index = dts
-        # TODO: datetime check
+            # for dt in datetime_index:
+            #     datetime.strptime(dt, "%Y-%m-%dT%H:%M:%SZ")
+
+            # for dt in datetime_index:
+            #     datetime.strftime()
+
+            # self.datetime_index = Series(datetime_index)
+            # if isinstance(self.datetime_index[0], datetime):
+            #     print("it is")
+            # self.datetime_index_index = None
 
         self.categorical_features = categorical_features
 
@@ -128,6 +145,7 @@ class TimeSeriesSample(DataFrame):
         #     self.base.set_index(index_series, inplace=True) # TODO: Do we drop the "index" series?
         #
 
+
     def valid_split(self, percent):
         """
         Splits off last valid_percent of the data to a validation set. Percent will come from last index of the
@@ -154,10 +172,11 @@ class TimeSeriesSample(DataFrame):
         self.validation_split_index = split_index
         self.validation_set = self[split_index:]
 
-        # drop_array = [i for i in range(split_index, size)]  # Debug, maybe remove
-        drop_array = [self[i] for i in range(split_index, size)]
+        drop_array = [i for i in range(split_index, size)]  # Debug, maybe remove
+        # drop_array = [self[i] for i in range(split_index, size)]
 
-        self.drop([i for i in range(split_index, size)], inplace=True)
+        self.drop(drop_array, inplace=True)
+        # self.drop([i for i in range(split_index, size)], inplace=True)
 
     # TODO: Decorators: Apply on full set vs train/test, apply on quantitative/vs cat/qual
     # Decorator funcs?? For splitting and rejoining, if necessary.
@@ -186,185 +205,184 @@ class TimeSeriesSample(DataFrame):
     #     print("base: {0}", len(self.base))
     #     print("base_valid: {0}", len(self.base_valid))
 
-    # Creature Features
-    def day_of_week_class(self):
-        """Add series to dataframe for a day_of_week_class classification."""
-        # # This func is for labels if needed
-        # def get_day(date):
-        #     day_int = date.weekday()
-
-        #     day_switch = {
-        #         0: "Monday",
-        #         1: "Tuesday",
-        #         2: "Wednesday",
-        #         3: "Thursday",
-        #         4: "Friday",
-        #         5: "Saturday",
-        #         6: "Sunday"
-        #     }
-        #     return day_switch.get(day_int, "Invalid day")
-
-        # Just need datetime.weekday for #
-        # self.base['day_of_week_class'] = self.base[self.index].apply(datetime.weekday)
-
-        self.base['day_of_week_class'] = [datetime.weekday(ts) for ts in self.base.index.values]
-
-
-    def weekend_weekday_class(self):
-        """Generate class for weekend_weekday_class. 0 is weekday."""
-
-        def weekend_weekday(date):
-            if date.weekday() == 5 or date.weekday() == 6:
-                return 1
-            else:
-                return 0
-
-        self.base['weekend_weekday_class'] = self.base[self.index].apply(weekend_weekday)
-
-        # Clean
-
-    def clean_lights(self, floor=0):
-        """
-        Add a light_on series to dataframe, indicating the lights were taking power. Add a light_cleaned with all
-        zero light power values removed.
-        """
-        light_on_list = []
-        light_cleaned_list = []
-
-        for light_reading in self.base['light']:
-            # Maybe some vals around 0?
-            light_on = light_reading > floor
-
-            if light_on:
-                light_on_list.append(1)
-                light_cleaned_list.append(light_reading)
-
-            else:
-                light_on_list.append(0)
-                light_cleaned_list.append(None)
-
-        light_on_series = Series(light_on_list)
-        self.base['light_on'] = light_on_series
-
-        light_cleaned_series = Series(light_cleaned_list)
-        self.base['light_cleaned'] = light_cleaned_series
-
-    # Graphing
-    # TODO: Want to start putting some methods to genreate plot items?
-    # From hist, return: axes: matplotlib.AxesSubplot or numpy.ndarray of them
-    # def plot_series_features(self):
+    # # Creature Features
+    # def day_of_week_class(self):
+    #     """Add series to dataframe for a day_of_week_class classification."""
+    #     # # This func is for labels if needed
+    #     # def get_day(date):
+    #     #     day_int = date.weekday()
     #
-    #     series_plots = []
-    #     for series in self.base:
-    #         if series not in self.categorical_features:
-    #             series_plots.append(self.base.plot(kind='line', x=self.base.index, y=series))
+    #     #     day_switch = {
+    #     #         0: "Monday",
+    #     #         1: "Tuesday",
+    #     #         2: "Wednesday",
+    #     #         3: "Thursday",
+    #     #         4: "Friday",
+    #     #         5: "Saturday",
+    #     #         6: "Sunday"
+    #     #     }
+    #     #     return day_switch.get(day_int, "Invalid day")
     #
-    #     return series_plots
+    #     self.append(())
+    #     dows = Series(data=[datetime.weekday(ts) for ts in self.datetime_index], name='day_of_week_class')
+    #     self.append(dows)
+    #     # self.['day_of_week_class_label'] = [datetime.weekday(ts) for ts in self..values]
+    #
+    # def weekend_weekday_class(self):
+    #     """Generate class for weekend_weekday_class. 0 is weekday."""
+    #
+    #     def weekend_weekday(date):
+    #         if date.weekday() == 5 or date.weekday() == 6:
+    #             return 1
+    #         else:
+    #             return 0
+    #
+    #     self.base['weekend_weekday_class'] = self.base[self.index].apply(weekend_weekday)
+    #
+    #     # Clean
+    #
+    # def clean_lights(self, floor=0):
+    #     """
+    #     Add a light_on series to dataframe, indicating the lights were taking power. Add a light_cleaned with all
+    #     zero light power values removed.
+    #     """
+    #     light_on_list = []
+    #     light_cleaned_list = []
+    #
+    #     for light_reading in self.base['light']:
+    #         # Maybe some vals around 0?
+    #         light_on = light_reading > floor
+    #
+    #         if light_on:
+    #             light_on_list.append(1)
+    #             light_cleaned_list.append(light_reading)
+    #
+    #         else:
+    #             light_on_list.append(0)
+    #             light_cleaned_list.append(None)
+    #
+    #     light_on_series = Series(light_on_list)
+    #     self.base['light_on'] = light_on_series
+    #
+    #     light_cleaned_series = Series(light_cleaned_list)
+    #     self.base['light_cleaned'] = light_cleaned_series
+    #
+    # # Graphing
+    # # TODO: Want to start putting some methods to genreate plot items?
+    # # From hist, return: axes: matplotlib.AxesSubplot or numpy.ndarray of them
+    # # def plot_series_features(self):
+    # #
+    # #     series_plots = []
+    # #     for series in self.base:
+    # #         if series not in self.categorical_features:
+    # #             series_plots.append(self.base.plot(kind='line', x=self.base.index, y=series))
+    # #
+    # #     return series_plots
+    # #     pass
+    # #
+    # # def plot_categorical_features(self):
+    # #     series_plots = []
+    # #
+    # #     for series in self.base:
+    # #         if series in self.categorical_features:
+    # #             series_plots.append(self.base.plot(kind='line', x=self.base.index, y=series))
+    # #
+    # #     return series_plots
+    #
+    # # Diagnostics
+    # def stationality(self, series, verbose=True):
+    #     """Print out the stationality of the given series. Use multiple methods/test."""
+    #
+    #     # TODO: Try/Catch for string or something?
+    #     if verbose:
+    #         print("Stationality of {0}".format(series))
+    #
+    #     values = self.base[series].values
+    #
+    #     # ADF
+    #     adf_result = adfuller(values)
+    #
+    #     if verbose:
+    #         print('ADF Statistic: %f' % adf_result[0])
+    #         print('p-value: %f' % adf_result[1])
+    #         print('Critical Values:')
+    #         for key, value in adf_result[4].items():
+    #             print('\t%s: %.3f' % (key, value))
+    #         print()
+    #
+    #     # KPSS
+    #     # kpss_result = kpss_test(values)
+    #
+    #     # Combine results
+    #     result = adf_result
+    #
+    #     return result
+    #
+    # def autocorrelation(self, series, verbose=True):
+    #     """
+    #     Check the degree of autocorrelation of the given series.
+    #     """
+    #
+    #     if verbose:
+    #         print("Autocorrelation of {0}".format(series))
+    #
+    #     values = self.base[series].values
+    #
+    #     result = quick_autocorr(values)
+    #
+    #     if verbose:
+    #         print("Quick:")
+    #         print(result)
+    #         print()
+    #
+    #     # TODO: Autocorr stepdown/degree. Take autocorr of resid?
+    #
+    #     return result
+    #
+    # # Decomposition
+    # # TODO: Centralize the decompose, with a fixed set of attributes to decompose to?
+    # #  or just seasonal_decompose wrapper?
+    # def decompose(self, series):
+    #     # TODO: maybe decmpose-specific suffixes?
+    #     period = 144  # Day
+    #     # period = 1008 # Month
+    #
+    #     two_side = True
+    #     # two_side=False
+    #
+    #     # model = 'additive'
+    #     model = 'multiplicitive'
+    #
+    #     result = seasonal_decompose(self.base[series].values, model=model, two_sided=two_side, freq=period)
+    #     # # Cut off the NaNa on either side, from Moving Average loss
+    #     # start_gap = period
+    #     # end_gap = len(result.resid) - period
+    #
+    #     # observed = result.observed[start_gap:end_gap]
+    #     # residual = result.resid[start_gap:end_gap]
+    #
+    #     # r_sqr = self.residual(observed, residual)
+    #
+    #     # print(r_sqr)
+    #
+    #     return result
+    #
+    # # ARIMA
+    # def generate_arima(self):
     #     pass
     #
-    # def plot_categorical_features(self):
-    #     series_plots = []
+    # # Util
+    # @staticmethod
+    # def calc_r_sqr(observed, residual):
+    #     """Calculate the r_sqr from an observed set and residual set."""
+    #     ss_res = sum([(e * e) for e in residual])
     #
-    #     for series in self.base:
-    #         if series in self.categorical_features:
-    #             series_plots.append(self.base.plot(kind='line', x=self.base.index, y=series))
+    #     y_bar = sum(observed) / len(observed)
+    #     ss_tot = sum([((y - y_bar) * (y - y_bar)) for y in observed])
     #
-    #     return series_plots
-
-    # Diagnostics
-    def stationality(self, series, verbose=True):
-        """Print out the stationality of the given series. Use multiple methods/test."""
-
-        # TODO: Try/Catch for string or something?
-        if verbose:
-            print("Stationality of {0}".format(series))
-
-        values = self.base[series].values
-
-        # ADF
-        adf_result = adfuller(values)
-
-        if verbose:
-            print('ADF Statistic: %f' % adf_result[0])
-            print('p-value: %f' % adf_result[1])
-            print('Critical Values:')
-            for key, value in adf_result[4].items():
-                print('\t%s: %.3f' % (key, value))
-            print()
-
-        # KPSS
-        # kpss_result = kpss_test(values)
-
-        # Combine results
-        result = adf_result
-
-        return result
-
-    def autocorrelation(self, series, verbose=True):
-        """
-        Check the degree of autocorrelation of the given series.
-        """
-
-        if verbose:
-            print("Autocorrelation of {0}".format(series))
-
-        values = self.base[series].values
-
-        result = quick_autocorr(values)
-
-        if verbose:
-            print("Quick:")
-            print(result)
-            print()
-
-        # TODO: Autocorr stepdown/degree. Take autocorr of resid?
-
-        return result
-
-    # Decomposition
-    # TODO: Centralize the decompose, with a fixed set of attributes to decompose to?
-    #  or just seasonal_decompose wrapper?
-    def decompose(self, series):
-        # TODO: maybe decmpose-specific suffixes?
-        period = 144  # Day
-        # period = 1008 # Month
-
-        two_side = True
-        # two_side=False
-
-        # model = 'additive'
-        model = 'multiplicitive'
-
-        result = seasonal_decompose(self.base[series].values, model=model, two_sided=two_side, freq=period)
-        # # Cut off the NaNa on either side, from Moving Average loss
-        # start_gap = period
-        # end_gap = len(result.resid) - period
-
-        # observed = result.observed[start_gap:end_gap]
-        # residual = result.resid[start_gap:end_gap]
-
-        # r_sqr = self.residual(observed, residual)
-
-        # print(r_sqr)
-
-        return result
-
-    # ARIMA
-    def generate_arima(self):
-        pass
-
-    # Util
-    @staticmethod
-    def calc_r_sqr(observed, residual):
-        """Calculate the r_sqr from an observed set and residual set."""
-        ss_res = sum([(e * e) for e in residual])
-
-        y_bar = sum(observed) / len(observed)
-        ss_tot = sum([((y - y_bar) * (y - y_bar)) for y in observed])
-
-        r_sqr = 1 - (ss_res / ss_tot)
-
-        return r_sqr
+    #     r_sqr = 1 - (ss_res / ss_tot)
+    #
+    #     return r_sqr
 
     def print(self):
         print(self.tail())

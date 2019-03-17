@@ -3,6 +3,7 @@ import unittest
 # I wish I could keep these tests at the module level, but the import statements are breaking
 from model import series_sample
 from model.series_sample import TimeSeriesSample
+import json
 
 # TODO: Is this bad? To have to import the test_target's dependencies?
 import pandas
@@ -13,55 +14,64 @@ from datetime import datetime
 class TestSeriesSample(unittest.TestCase):
 
     @staticmethod
-    def setup_test_frame():
-        # TODO: Is something like this neccissarry, or should I just let it fail as is??
-        test_data_path = './data/test_data.csv'
-        try:
-            return pandas.read_csv(test_data_path)
-        except FileNotFoundError:
-            raise FileNotFoundError("Can't find the test data file at {0}".format(test_data_path))
+    def parse_test_data():
+        test_data_path = './test/test_data.json'
+        with open(test_data_path) as json_file:
+            res_json = json.load(json_file)
 
-    def setup_test_sample(self):
-        test_frame = self.setup_test_frame()
-        return TimeSeriesSample(test_frame, 'datetime')
+            result_series = res_json['Results'][0]['Series'][0]
+
+            table = result_series['name']
+
+            columns = result_series['columns']
+            columns = columns[1:]  # Drop index label
+
+            values = result_series['values']
+            data = [value[1:] for value in values]
+            index = [value[0] for value in values]
+
+            return table, columns, index, data
+
+    def init_test_sample(self):
+        table, columns, index, data = self.parse_test_data()
+
+        sample = TimeSeriesSample(data=data, columns=columns,  # Super
+                                  datetime_index=index,
+                                  categorical_features=['cat', 'features'])  # RYO
+        return sample
 
     # Init tests
-    def test_init_index_key(self):
-        test_frame = self.setup_test_frame()
+    def test_init(self):
+        test_series_sample = self.init_test_sample()
 
-        self.assertRaises(KeyError, TimeSeriesSample, test_frame, 'bad_key')
-
-    def test_index_datetime_unparsable(self):
-        test_frame = self.setup_test_frame()
-
-        self.assertRaises(TypeError, TimeSeriesSample, test_frame, 'good_key')
-
-    def test_default_index_datetime_parse(self):
-        sample = self.setup_test_sample()
-
-        first_index = sample.base.index[0]
-
-        self.assertIsInstance(first_index, datetime)
+        self.assertEqual(True, True, "T")
 
     # Train/Test Split Checks
     def test_train_test_split_result_size(self):
-        sample = self.setup_test_sample()
+        sample = self.init_test_sample()
 
-        sample.train_test_split(20)
+        sample.valid_split(20)
 
-        self.assertEqual(len(sample.base), 16)
-        self.assertEqual(len(sample.base_valid), 4)
+        self.assertEqual(len(sample), 16)
+        self.assertEqual(len(sample.validation_set), 4)
 
     def test_train_test_split_invalid_percent(self):
-        # test_frame = pandas.read_csv('./data/test_data.csv')
-        sample = self.setup_test_sample()
+        sample = self.init_test_sample()
 
-        self.assertRaises(ValueError, sample.train_test_split, 101)
-        self.assertRaises(ValueError, sample.train_test_split, -1)
+        self.assertRaises(ValueError, sample.valid_split, 101)
+        self.assertRaises(ValueError, sample.valid_split, -1)
 
 
-# if __name__ == '__main__':
-#     dataframe = pandas.read_csv('./data/test_data.csv')
-#     decomp = series_sample.TimeSeriesSample(dataframe, 'testing')
-#     print(dataframe.head())
+    # def test_index_datetime_unparsable(self):
+    #     test_frame = self.setup_test_frame()
+    #
+    #     self.assertRaises(TypeError, TimeSeriesSample, test_frame, 'good_key')
+    #
+    # def test_default_index_datetime_parse(self):
+    #     sample = self.setup_test_sample()
+    #
+    #     first_index = sample.base.index[0]
+    #
+    #     self.assertIsInstance(first_index, datetime)
+    #
 
