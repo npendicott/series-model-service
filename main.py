@@ -2,6 +2,8 @@ from model.series_sample import TimeSeriesSample
 from data.energy_service import EnergyService
 
 from pandas import DataFrame
+from model.series_model import TimeSeriesModelAccessor
+
 import json
 import os
 
@@ -20,24 +22,33 @@ def parse_test_data():
 
         values = result_series['values']
         data = [value[1:] for value in values]
-        index = [value[0] for value in values]
+        timestamps = [value[0] for value in values]
 
-        return table, columns, index, data
+        return table, timestamps, columns, data
 
 
 def init_test_sample():
-    table, columns, index, data = parse_test_data()
+    table, timestamps, columns, data = parse_test_data()
+    # table, columns, index, data = parse_test_data()
 
-    sample = TimeSeriesSample(data=data, columns=columns,  # Super
-                              datetime_index=index,
-                              # valid_percent=20,
-                              categorical_features=['cat', 'features'])  # RYO
-    return sample
+    frame = DataFrame(data=data, columns=columns)
+    frame['timestamp'] = timestamps
+
+    # sample = TimeSeriesSample(data=data, columns=columns,  # Super
+    #                           datetime_index=index,
+    #                           # valid_percent=20,
+    #                           categorical_features=['cat', 'features'])  # RYO
+
+    return frame
 
 
 if __name__ == "__main__":
     sample = init_test_sample()
-    sample.valid_split(20)
+
+    sample.tsm.format_index()
+
+    sample.tsm.stationality('energy_mean')
+
     print()
 
 

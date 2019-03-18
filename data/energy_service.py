@@ -1,6 +1,6 @@
 import requests
 #from pandas import DataFrame
-from datetime import datetime
+# from datetime import datetime
 
 
 class EnergyService:
@@ -32,28 +32,28 @@ class EnergyService:
 
             values = result_series['values']
             data = [value[1:] for value in values]
-            index = [value[0] for value in values]
+            timestamps = [value[0] for value in values]
 
             # Datetime Check
-            if not isinstance(index[0], datetime):
-                try:
-                    # index_series = self.base.index.apply(lambda x: datetime.strptime(x, date_fmt_str))  # Apply
-                    index = [datetime.strptime(dt, self.date_fmt_str) for dt in index]
-
-                except TypeError:
-                    raise TypeError("Cannot parse datetime: \"{0}\".".format(index[0]))
-                except IndexError:
-                    raise IndexError("Index series as nothing at [0]!")
+            # if not isinstance(index[0], datetime):
+            #     try:
+            #         # index_series = self.base.index.apply(lambda x: datetime.strptime(x, date_fmt_str))  # Apply
+            #         index = [datetime.strptime(dt, self.date_fmt_str) for dt in index]
+            #
+            #     except TypeError:
+            #         raise TypeError("Cannot parse datetime: \"{0}\".".format(index[0]))
+            #     except IndexError:
+            #         raise IndexError("Index series as nothing at [0]!")
 
                 # self.base.set_index(index_series, inplace=True)  # TODO: Do we drop the "index" series?
 
-            return table, columns, index, data
+            return table, timestamps, columns, data
 
             # frame = DataFrame(data=data, index=index, columns=columns[1:])
-            frame = DataFrame(data=data)#, #index=index, columns=columns[1:])
-
-            print(frame.head())
-            return frame
+            # frame = DataFrame(data=data)#, #index=index, columns=columns[1:])
+            #
+            # print(frame.head())
+            # return frame
 
 
 # if __name__ == "__main__":

@@ -1,13 +1,9 @@
 import unittest
 
-# I wish I could keep these tests at the module level, but the import statements are breaking
-from model import series_sample
-from model.series_sample import TimeSeriesSample
-import json
+from pandas import DataFrame
+from model.series_model import TimeSeriesModelAccessor
 
-# TODO: Is this bad? To have to import the test_target's dependencies?
-import pandas
-from datetime import datetime
+import json
 
 
 # TODO: Comment tests
@@ -28,24 +24,48 @@ class TestSeriesSample(unittest.TestCase):
 
             values = result_series['values']
             data = [value[1:] for value in values]
-            index = [value[0] for value in values]
+            timestamps = [value[0] for value in values]
 
-            return table, columns, index, data
+            return table, timestamps, columns, data
 
     def init_test_sample(self):
-        table, columns, index, data = self.parse_test_data()
+        table, timestamps, columns, data = self.parse_test_data()
 
-        sample = TimeSeriesSample(data=data, columns=columns,  # Super
-                                  datetime_index=index,
-                                  categorical_features=['cat', 'features'])  # RYO
-        return sample
+        frame = DataFrame(data=data, columns=columns)
+        frame['timestamp'] = timestamps
+
+        return frame
 
     # Init tests
-    # def test_init(self):
-    #     test_series_sample = self.init_test_sample()
-    #
-    #     self.assertEqual(True, True, "T")
-    #
+    def test_init(self):
+        sample = self.init_test_sample()
+
+        self.assertEqual(True, True, "T")
+
+    def test_index_fmt(self):
+        sample = self.init_test_sample()
+
+        sample.tsm.format_index()
+
+        # TODO: Index Checks
+        self.assertEqual(True, True)
+
+    # Stationality
+    def test_stationality_adf(self):
+        sample = self.init_test_sample()
+
+        sample.tsm.format_index()
+
+        result = sample.tsm.stationality('energy_mean')
+
+        # TODO: Build Dict
+        # result['adf'] = adf_result[0]
+        # result['pvalue'] = adf_result[1]
+        # result['usedlag'] = adf_result[2]
+        # result['nobs'] = adf_result[3]
+        # result['values'] = adf_result[4]
+        # result['icbest'] = adf_result[5]
+
     # # Train/Test Split Checks
     # def test_train_test_split_result_size(self):
     #     sample = self.init_test_sample()
@@ -74,4 +94,5 @@ class TestSeriesSample(unittest.TestCase):
     #
     #     self.assertIsInstance(first_index, datetime)
     #
+
 
