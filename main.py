@@ -47,7 +47,7 @@ if __name__ == "__main__":
 
     sample.tsm.format_index()
 
-    sample.tsm.stationality('energy_mean')
+    result = sample.tsm.stationality('energy_mean')
 
     print()
 

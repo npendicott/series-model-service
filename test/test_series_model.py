@@ -38,7 +38,7 @@ class TestSeriesSample(unittest.TestCase):
 
     # Init tests
     def test_init(self):
-        sample = self.init_test_sample()
+        self.init_test_sample()
 
         self.assertEqual(True, True, "T")
 
@@ -58,13 +58,16 @@ class TestSeriesSample(unittest.TestCase):
 
         result = sample.tsm.stationality('energy_mean')
 
-        # TODO: Build Dict
-        # result['adf'] = adf_result[0]
-        # result['pvalue'] = adf_result[1]
-        # result['usedlag'] = adf_result[2]
-        # result['nobs'] = adf_result[3]
-        # result['values'] = adf_result[4]
-        # result['icbest'] = adf_result[5]
+        expected = {
+            'adf': -0.0,
+            'pvalue': 0.958532086060056,
+            'usedlag': 9,
+            'nobs': 10,
+            'values': {'1%': -4.331573, '5%': -3.23295, '10%': -2.7487},
+            'icbest': -615.9593774504112
+        }
+
+        self.assertDictEqual(result, expected)
 
     # # Train/Test Split Checks
     # def test_train_test_split_result_size(self):
@@ -94,5 +97,17 @@ class TestSeriesSample(unittest.TestCase):
     #
     #     self.assertIsInstance(first_index, datetime)
     #
+
+if __name__ == "__main__":
+    tests = TestSeriesSample()
+
+    sample = tests.init_test_sample()
+
+    sample.tsm.format_index()
+
+    result = sample.tsm.stationality('energy_mean')
+
+    print()
+
 
 

@@ -45,7 +45,7 @@ class TimeSeriesModelAccessor:
                 raise TypeError("Index must be correctly formatted or contain a 'timestamp' column.")
 
     def format_index(self):
-        datetime_index_key = 'timestamp'
+        datetime_index_key = 'timestamp'  # TODO: Some object for 'model_keys'
 
         timestamps = [Timestamp.strptime(ts, self.INFLUX_TS_FMT) for ts in self._obj[datetime_index_key]]
         timestamp_index = DatetimeIndex(timestamps)
@@ -87,12 +87,12 @@ class TimeSeriesModelAccessor:
         if len(adf_result) > 6:
             result['resstore'] = adf_result[6]  # Optional
 
-        print('ADF Statistic: %f' % result['adf'])
-        print('p-value: %f' % result['pvalue'])
-        print('Critical Values:')
-        for key, value in result['values'].items():
-            print('\t%s: %.3f' % (key, value))
-        print()
+        # print('ADF Statistic: %f' % result['adf'])
+        # print('p-value: %f' % result['pvalue'])
+        # print('Critical Values:')
+        # for key, value in result['values'].items():
+        #     print('\t%s: %.3f' % (key, value))
+        # print()
 
         # print('ADF Statistic: %f' % adf_result[0])
         # print('p-value: %f' % adf_result[1])
