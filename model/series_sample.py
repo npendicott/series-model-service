@@ -1,209 +1,128 @@
-import numpy as np
-# import pandas
-from pandas import Series, DataFrame, DatetimeIndex
-from datetime import datetime
+from pandas import Timestamp, DatetimeIndex, MultiIndex, RangeIndex
+from pandas.api.extensions import register_dataframe_accessor
+
 from statsmodels.tsa.stattools import adfuller
-from statsmodels.tsa.seasonal import seasonal_decompose
 
 from model.ryo_analysis import kpss_test, quick_autocorr
 
-# The following works for the dang jupyter, should just keep everything in a flat dir I guess
-# from app.ts_decomposition.model.ryo_analysis import kpss_test, quick_autocorr
+# import numpy as np
+# from pandas import Series, DataFrame, DatetimeIndex
+# from datetime import datetime
+# from statsmodels.tsa.stattools import adfuller
+# from statsmodels.tsa.seasonal import seasonal_decompose
+#
+# from model.ryo_analysis import kpss_test, quick_autocorr
 
 
-# TODO: Inherit from df, so df calls go to base?
-class TimeSeriesSample(DataFrame):
-    """ An object for holding time series data, for the purpose of data analysis and modeling.
-    Right now, trying to subclass DataFrame. According to pandas, there may be better ways.
+@register_dataframe_accessor("tss")
+class TimeSeriesSampleAccessor:
+    """ Adding accessor for some common time series modeling tasks to pandas DataFrame.
+
+    IMPORTANT: So here, we are pretty much creating two indices, a datetime and an int range.
+    Pandas has some support for multiple indices, but the whole [0][1] is not my fave.
+    So, I guess the choice here is: do we maintain multiple indices??
+
 
     http://pandas.pydata.org/pandas-docs/stable/development/extending.html#extending-subclassing-pandas
     http://pandas.pydata.org/pandas-docs/stable/development/extending.html#extending-register-accessors
 
     This is a good example apparently: https://github.com/geopandas/geopandas/blob/master/geopandas/geodataframe.py
     """
-    # Base Dataframe
-    # TODO: How do we deal with 'split' stuff? 'base' will be full until the split, then will only be
-    #  the train set. 'base_valid' will be only be the validation set. Any transform over the full set will need to
-    #  operate over the full set, but will also need to preserve the original split.
-    #  possibility: with some decorator, merge the sets and save the split index, then re-split. Could just save the
-    #  percent, but that seems less precise?
+    INFLUX_TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
 
-    # temporary properties
-    # _internal_names = DataFrame._internal_names + ['internal_cache']
-    # _internal_names_set = set(_internal_names)
+    # CREATE/CHECK DataFrame
+    # TODO: Is there a reason for a static validate?
+    #  Should I interanlize/automate the index validation?
+    def __init__(self, pandas_obj):
+        self._validate(pandas_obj)
+        self._obj = pandas_obj
 
-    # normal properties
-    _metadata = [
-        'datetime_index',
-        # 'dt_index',
+    @staticmethod
+    def _validate(obj):
+        # TODO: Validate MultiIndex structure
+        if not isinstance(obj.index, MultiIndex):
+            if 'timestamp' not in obj.columns:
+                raise TypeError("Index must be correctly formatted or contain a 'timestamp' column.")
 
-        'categorical_features',
-        'validation_split_index',
-        'validation_set',
-    ]
+    def format_index(self):
+        datetime_index_key = 'timestamp'  # TODO: Some object for 'model_keys'
 
-    datetime_index = None
+        timestamps = [Timestamp.strptime(ts, self.INFLUX_TS_FMT) for ts in self._obj[datetime_index_key]]
+        timestamp_index = DatetimeIndex(timestamps)
+        # print(timestamp_index)
+        self._obj.set_index(timestamp_index, inplace=True)
 
-    categorical_features = None
-    validation_split_index = None
-    validation_set = None
+        # Dual index
+        # int_index = self._obj.index
+        # self._obj.set_index([int_index, timestamp_index], inplace=True)
 
-    @property
-    def _constructor(self):
-        return TimeSeriesSample
+        # Clean up
+        # TODO: Where does the timestamp column go? Getting a KeyError
+        # self._obj.drop(datetime_index_key, inplace=True)
 
-    # base = None
-    # base_valid = None
-    #
-    # index = None  # Index of the sample, should probably be a time index
-    # train_test_split_index = None
-    # categorical_features = None
+    # Diagnostics
+    # Could use @property and a cache in the object to save time, if repeated calls across
+    # different series slow things down.
+    def stationality(self, series):
+        """Print out the stationality of the given series. Use multiple methods/test."""
 
-    # TODO: If index_key is None, check the actual frame index?
-    def __init__(self, *args, **kwargs): #data, index=None, categorical_features=None):
+        # TODO: Try/Catch for string or something?
+        print("Stationality of {0}".format(series))
+
+        values = self._obj[series].values
+
+        # ADF
+        # Bad unpack, also lots linting errors?
+        # https://www.statsmodels.org/dev/generated/statsmodels.tsa.stattools.adfuller.html
+        result = {}
+        adf_result = adfuller(values)
+
+        result['adf'] = adf_result[0]
+        result['pvalue'] = adf_result[1]
+        result['usedlag'] = adf_result[2]
+        result['nobs'] = adf_result[3]
+        result['values'] = adf_result[4]
+        result['icbest'] = adf_result[5]
+        if len(adf_result) > 6:
+            result['resstore'] = adf_result[6]  # Optional
+
+        # print('ADF Statistic: %f' % result['adf'])
+        # print('p-value: %f' % result['pvalue'])
+        # print('Critical Values:')
+        # for key, value in result['values'].items():
+        #     print('\t%s: %.3f' % (key, value))
+        # print()
+
+        # print('ADF Statistic: %f' % adf_result[0])
+        # print('p-value: %f' % adf_result[1])
+        # print('Critical Values:')
+        # for key, value in adf_result[4].items():
+        #     print('\t%s: %.3f' % (key, value))
+        # print()
+
+        # KPSS
+        # kpss_result = kpss_test(values)
+
+        return result
+
+    def autocorrelation(self, series):
         """
-        Initialize the sample dataframe, check for proper indexing.
-        Will also do a validation split, if valid_percent is provided
-        """
-        # TODO: TEST Doesnt throw arg error
-        # Unpack RYO Args
-        categorical_features = kwargs.pop('categorical_features', None)
-        valid_percent = kwargs.pop('valid_percent', None)  # TODO: Impliment
-        datetime_index = kwargs.pop('datetime_index', None)
-
-
-        # IMPORTANT: So here, we are pretty much creating two indices, a datetime and an int range.
-        # Pandas has some support for multiple indices, but the whole [0][1] is not my fave.
-        # So, I guess the choice here is: do we maintain multiple indices??
-        # TODO: DatetimeIndex Throwing freq error
-        # TODO: Sometimes, valid percent line 172 drops us in the constructor, and we are looking for a dti
-        if datetime_index is not None:
-            self.datetime_index = datetime_index
-            self.datetime_index = [datetime.strptime(dt, "%Y-%m-%dT%H:%M:%SZ") for dt in datetime_index]
-
-            # for dt in datetime_index:
-            #     datetime.strptime(dt, "%Y-%m-%dT%H:%M:%SZ")
-
-            # for dt in datetime_index:
-            #     datetime.strftime()
-
-            # self.datetime_index = Series(datetime_index)
-            # if isinstance(self.datetime_index[0], datetime):
-            #     print("it is")
-            # self.datetime_index_index = None
-
-        self.categorical_features = categorical_features
-
-        # Sooo... everything before or after super? Mixx? -> what can be before, should be before, reduce deps
-        super(TimeSeriesSample, self).__init__(*args, **kwargs)
-
-        if valid_percent is not None:
-            self.valid_split(valid_percent)
-
-        # Checks
-        # TODO: Easier to just check the super, but validating args will cause more efficient faulure
-        # if data.index is None and index is None:
-        #     raise TypeError("Dataframe needs an index!")
-        #
-        # if not isinstance(base.index[0], datetime):
-        #         raise TypeError("Index must be datetime")
-        #
-        # # # TODO: Right now, features are either "categorical" or not. What other classifications are needed?
-        # if categorical_features is not None:
-        #     self.categorical_features = categorical_features
-        # if not isinstance(base.index[0], datetime):
-        #         raise TypeError("Index must be datetime")
-        # May need to raise this
-        # except IndexError:
-        #     raise IndexError("Index series as nothing at [0]!")
-
-
-        # OLD
-        # At first, I tried to parse in constructor. Now I am just checking
-        # Set the index
-        # if index_key is not None:
-        #     try:
-        #         index_series = self.base[index_key]
-        #     except KeyError:
-        #         raise KeyError("Index \"{0}\" not found!".format(index_key))
-        #
-        #     self.base.set_index(index_series, inplace=True) # TODO: Do we drop the "index" series?
-        #
-        # # Datetime Check
-        # if not isinstance(self.base.index[0], datetime):
-        #     try:
-        #         # index_series = self.base.index.apply(lambda x: datetime.strptime(x, date_fmt_str))  # Apply
-        #         new_index = [datetime.strptime(dt, date_fmt_str) for dt in self.base.index]
-        #         self.base.set_index(new_index)
-        #         # TODO: KeyError: datetime.datetime(2012, 4, 13, 0, 0)
-        #
-        #     except TypeError:
-        #         raise TypeError("Cannot parse datetime index at \"{0}\".".format(index_key))
-        #     except IndexError:
-        #         raise IndexError("Index series as nothing at [0]!")
-        #
-        #     self.base.set_index(index_series, inplace=True) # TODO: Do we drop the "index" series?
-        #
-
-
-    def valid_split(self, percent):
-        """
-        Splits off last valid_percent of the data to a validation set. Percent will come from last index of the
-        array.
+        Check the degree of autocorrelation of the given series.
         """
 
-        if self.validation_set is not None:
-            pass  # TODO: Check for percent/base_valid? then rejoin?
+        values = self._obj[series].values
 
-        size = len(self.index)
+        result = quick_autocorr(values)
 
-        if percent >= 100 or percent <= 0:
-            raise ValueError("{0} is not a valid percent for train/test split")
+        print("Autocorrelation of {0}".format(series))
 
-        # TODO: Decimal check, or range check?
-        #  i.e. will a valid set ever be half a percent? And is it cool to do type checks?
-        if percent > 1:
-            factor = (100 - percent) / 100
-        else:
-            factor = (1 - percent) / 100
+        print("Quick:")
+        print(result)
+        print()
 
-        split_index = int(size * factor)
+        # TODO: Autocorr stepdown/degree. Take autocorr of resid?
 
-        self.validation_split_index = split_index
-        self.validation_set = self[split_index:]
-
-        drop_array = [i for i in range(split_index, size)]  # Debug, maybe remove
-        # drop_array = [self[i] for i in range(split_index, size)]
-
-        self.drop(drop_array, inplace=True)
-        # self.drop([i for i in range(split_index, size)], inplace=True)
-
-    # TODO: Decorators: Apply on full set vs train/test, apply on quantitative/vs cat/qual
-    # Decorator funcs?? For splitting and rejoining, if necessary.
-    # def _rejoin(self):
-    #     self.train_test_split_index = len(self.base)
-    #     self.base = self.base + self.base_valid
-    #
-    # def _resplit(self):
-    #     self.base, self.base_valid = self.base[:self.train_test_split_index], self.base[self.train_test_split_index:]
-    #
-    # # TODO: Want to make a wrapper that applies new features, or feature transforms, over BOTH train and test
-    # @staticmethod
-    # def across_splits(func):
-    #     # TODO: @functools.wraps(func)
-    #     def wrapper(*args, **kwargs):
-    #         # self._rejoin()
-    #
-    #         func()
-    #
-    #         # self._resplit()
-    #
-    #     return wrapper
-    #
-    # @across_splits
-    # def test_wrap_unwrap(self):
-    #     print("base: {0}", len(self.base))
-    #     print("base_valid: {0}", len(self.base_valid))
+        return result
 
     # Creature Features
     def day_of_week_class(self):
@@ -223,49 +142,56 @@ class TimeSeriesSample(DataFrame):
         #     }
         #     return day_switch.get(day_int, "Invalid day")
 
-        self.append(())
-        dows = Series(data=[datetime.weekday(ts) for ts in self.datetime_index], name='day_of_week_class')
-        self.append(dows)
+        # frame = self._obj
+        # index = frame.index
+        # sub_frame = frame[:5]
+        # print(len(sub_frame))
+        day_of_week_class = [ts.weekday() for ts in self._obj.index]
+
+        return day_of_week_class
+        # self.append(())
+        # dows = Series(data=[datetime.weekday(ts) for ts in self.datetime_index], name='day_of_week_class')
+        # self.append(dows)
         # self.['day_of_week_class_label'] = [datetime.weekday(ts) for ts in self..values]
 
-    def weekend_weekday_class(self):
-        """Generate class for weekend_weekday_class. 0 is weekday."""
-
-        def weekend_weekday(date):
-            if date.weekday() == 5 or date.weekday() == 6:
-                return 1
-            else:
-                return 0
-
-        self.base['weekend_weekday_class'] = self.base[self.index].apply(weekend_weekday)
-
-        # Clean
-
-    def clean_lights(self, floor=0):
-        """
-        Add a light_on series to dataframe, indicating the lights were taking power. Add a light_cleaned with all
-        zero light power values removed.
-        """
-        light_on_list = []
-        light_cleaned_list = []
-
-        for light_reading in self.base['light']:
-            # Maybe some vals around 0?
-            light_on = light_reading > floor
-
-            if light_on:
-                light_on_list.append(1)
-                light_cleaned_list.append(light_reading)
-
-            else:
-                light_on_list.append(0)
-                light_cleaned_list.append(None)
-
-        light_on_series = Series(light_on_list)
-        self.base['light_on'] = light_on_series
-
-        light_cleaned_series = Series(light_cleaned_list)
-        self.base['light_cleaned'] = light_cleaned_series
+    # def weekend_weekday_class(self):
+    #     """Generate class for weekend_weekday_class. 0 is weekday."""
+    #
+    #     def weekend_weekday(date):
+    #         if date.weekday() == 5 or date.weekday() == 6:
+    #             return 1
+    #         else:
+    #             return 0
+    #
+    #     self.base['weekend_weekday_class'] = self.base[self.index].apply(weekend_weekday)
+    #
+    #     # Clean
+    #
+    # def clean_lights(self, floor=0):
+    #     """
+    #     Add a light_on series to dataframe, indicating the lights were taking power. Add a light_cleaned with all
+    #     zero light power values removed.
+    #     """
+    #     light_on_list = []
+    #     light_cleaned_list = []
+    #
+    #     for light_reading in self.base['light']:
+    #         # Maybe some vals around 0?
+    #         light_on = light_reading > floor
+    #
+    #         if light_on:
+    #             light_on_list.append(1)
+    #             light_cleaned_list.append(light_reading)
+    #
+    #         else:
+    #             light_on_list.append(0)
+    #             light_cleaned_list.append(None)
+    #
+    #     light_on_series = Series(light_on_list)
+    #     self.base['light_on'] = light_on_series
+    #
+    #     light_cleaned_series = Series(light_cleaned_list)
+    #     self.base['light_cleaned'] = light_cleaned_series
 
     # Graphing
     # TODO: Want to start putting some methods to genreate plot items?
@@ -290,102 +216,10 @@ class TimeSeriesSample(DataFrame):
     #     return series_plots
 
     # Diagnostics
-    def stationality(self, series, verbose=True):
-        """Print out the stationality of the given series. Use multiple methods/test."""
 
-        # TODO: Try/Catch for string or something?
-        if verbose:
-            print("Stationality of {0}".format(series))
 
-        values = self.base[series].values
 
-        # ADF
-        adf_result = adfuller(values)
 
-        if verbose:
-            print('ADF Statistic: %f' % adf_result[0])
-            print('p-value: %f' % adf_result[1])
-            print('Critical Values:')
-            for key, value in adf_result[4].items():
-                print('\t%s: %.3f' % (key, value))
-            print()
 
-        # KPSS
-        # kpss_result = kpss_test(values)
 
-        # Combine results
-        result = adf_result
 
-        return result
-
-    def autocorrelation(self, series, verbose=True):
-        """
-        Check the degree of autocorrelation of the given series.
-        """
-
-        if verbose:
-            print("Autocorrelation of {0}".format(series))
-
-        values = self.base[series].values
-
-        result = quick_autocorr(values)
-
-        if verbose:
-            print("Quick:")
-            print(result)
-            print()
-
-        # TODO: Autocorr stepdown/degree. Take autocorr of resid?
-
-        return result
-
-    # Decomposition
-    # TODO: Centralize the decompose, with a fixed set of attributes to decompose to?
-    #  or just seasonal_decompose wrapper?
-    def decompose(self, series):
-        # TODO: maybe decmpose-specific suffixes?
-        period = 144  # Day
-        # period = 1008 # Month
-
-        two_side = True
-        # two_side=False
-
-        # model = 'additive'
-        model = 'multiplicitive'
-
-        result = seasonal_decompose(self.base[series].values, model=model, two_sided=two_side, freq=period)
-        # # Cut off the NaNa on either side, from Moving Average loss
-        # start_gap = period
-        # end_gap = len(result.resid) - period
-
-        # observed = result.observed[start_gap:end_gap]
-        # residual = result.resid[start_gap:end_gap]
-
-        # r_sqr = self.residual(observed, residual)
-
-        # print(r_sqr)
-
-        return result
-
-    # ARIMA
-    def generate_arima(self):
-        pass
-
-    # Util
-    @staticmethod
-    def calc_r_sqr(observed, residual):
-        """Calculate the r_sqr from an observed set and residual set."""
-        ss_res = sum([(e * e) for e in residual])
-
-        y_bar = sum(observed) / len(observed)
-        ss_tot = sum([((y - y_bar) * (y - y_bar)) for y in observed])
-
-        r_sqr = 1 - (ss_res / ss_tot)
-
-        return r_sqr
-
-    def print(self):
-        print(self.tail())
-        print("Length: {0}".format(len(self)))
-        # print(self.train_test_split_index)
-        print("Categorical Features: {0}".format(self.categorical_features))

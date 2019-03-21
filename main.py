@@ -1,8 +1,7 @@
-from model.series_sample import TimeSeriesSample
 from data.energy_service import EnergyService
 
 from pandas import DataFrame
-from model.series_model import TimeSeriesModelAccessor
+from model.series_sample import TimeSeriesSampleAccessor
 
 import json
 import os
@@ -43,11 +42,29 @@ def init_test_sample():
 
 
 if __name__ == "__main__":
-    sample = init_test_sample()
+    # PROD
+    service = EnergyService()
 
-    sample.tsm.format_index()
+    table, timestamps, columns, data = service.sample_data('MAC000246', '2012-04-12 10:30:00.0000000', '2012-05-12 10:30:00.0000000')
 
-    result = sample.tsm.stationality('energy_mean')
+    sample = DataFrame(data=data, columns=columns)
+    sample['timestamp'] = timestamps
+
+    print(sample.head())
+
+    # TEST
+    # sample = init_test_sample()
+
+    sample.tss.format_index()
+
+    subsample = sample[2:4]
+    print(len(subsample))
+
+    sample.tss.day_of_week_class()
+
+    stationality = sample.tss.stationality('energy_mean')
+
+    auto_corr = sample.tss.autocorrelation('energy_mean')
 
     print()
 

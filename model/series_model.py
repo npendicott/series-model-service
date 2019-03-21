@@ -1,112 +1,241 @@
-from pandas import Timestamp, DatetimeIndex, MultiIndex, RangeIndex
-from pandas.api.extensions import register_dataframe_accessor
-
+import numpy as np
+# import pandas
+from pandas import Series, DataFrame, DatetimeIndex
+from datetime import datetime
 from statsmodels.tsa.stattools import adfuller
+from statsmodels.tsa.seasonal import seasonal_decompose
 
-# from model.ryo_analysis import kpss_test, quick_autocorr
+from model.ryo_analysis import kpss_test, quick_autocorr
 
-# import numpy as np
-# from pandas import Series, DataFrame, DatetimeIndex
-# from datetime import datetime
-# from statsmodels.tsa.stattools import adfuller
-# from statsmodels.tsa.seasonal import seasonal_decompose
-#
-# from model.ryo_analysis import kpss_test, quick_autocorr
+# The following works for the dang jupyter, should just keep everything in a flat dir I guess
+# from app.ts_decomposition.model.ryo_analysis import kpss_test, quick_autocorr
 
 
-@register_dataframe_accessor("tsm")
-class TimeSeriesModelAccessor:
-    """ Adding accessor for some common time series modeling tasks to pandas DataFrame.
+# TODO: Inherit from df, so df calls go to base?
+class TimeSeriesModel:
+    """ This object will hold various time series models, such as ARIMA models or an LSTM model.
+    Will include serialization/export methods, and tests, etc.
 
-    IMPORTANT: So here, we are pretty much creating two indices, a datetime and an int range.
-    Pandas has some support for multiple indices, but the whole [0][1] is not my fave.
-    So, I guess the choice here is: do we maintain multiple indices??
-
-
-    http://pandas.pydata.org/pandas-docs/stable/development/extending.html#extending-subclassing-pandas
-    http://pandas.pydata.org/pandas-docs/stable/development/extending.html#extending-register-accessors
-
-    This is a good example apparently: https://github.com/geopandas/geopandas/blob/master/geopandas/geodataframe.py
+    Right now it is old stuff, in the process of stripping and reworking.
     """
-    INFLUX_TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
 
-    # CREATE/CHECK DataFrame
-    # TODO: Is there a reason for a static validate?
-    #  Should I interanlize/automate the index validation?
-    def __init__(self, pandas_obj):
-        self._validate(pandas_obj)
-        self._obj = pandas_obj
+    # normal properties
+    _metadata = [
+        'datetime_index',
+        # 'dt_index',
 
-    @staticmethod
-    def _validate(obj):
-        # TODO: Validate MultiIndex structure
-        if not isinstance(obj.index, MultiIndex):
-            if 'timestamp' not in obj.columns:
-                raise TypeError("Index must be correctly formatted or contain a 'timestamp' column.")
+        'categorical_features',
+        'validation_split_index',
+        'validation_set',
+    ]
 
-    def format_index(self):
-        datetime_index_key = 'timestamp'  # TODO: Some object for 'model_keys'
+    datetime_index = None
 
-        timestamps = [Timestamp.strptime(ts, self.INFLUX_TS_FMT) for ts in self._obj[datetime_index_key]]
-        timestamp_index = DatetimeIndex(timestamps)
-        # print(timestamp_index)
+    categorical_features = None
+    validation_split_index = None
+    validation_set = None
 
-        int_index = self._obj.index
-        # print(int_index)
 
-        self._obj.set_index([int_index, timestamp_index], inplace=True)
+    # base = None
+    # base_valid = None
+    #
+    # index = None  # Index of the sample, should probably be a time index
+    # train_test_split_index = None
+    # categorical_features = None
 
-        # Clea up
-        # TODO: Where does the timestamp column go? Getting a KeyError
-        # self._obj.drop(datetime_index_key, inplace=True)
+    # TODO: If index_key is None, check the actual frame index?
+    def __init__(self, *args, **kwargs): #data, index=None, categorical_features=None):
+        """
+        Initialize the sample dataframe, check for proper indexing.
+        Will also do a validation split, if valid_percent is provided
+        """
+        # TODO: TEST Doesnt throw arg error
+        # Unpack RYO Args
+        categorical_features = kwargs.pop('categorical_features', None)
+        valid_percent = kwargs.pop('valid_percent', None)  # TODO: Impliment
+        datetime_index = kwargs.pop('datetime_index', None)
 
-        # print(self._obj.index)
-        # print(self._obj.head())
 
-    # @property
-    def stationality(self, series):
-        """Print out the stationality of the given series. Use multiple methods/test."""
+        # IMPORTANT: So here, we are pretty much creating two indices, a datetime and an int range.
+        # Pandas has some support for multiple indices, but the whole [0][1] is not my fave.
+        # So, I guess the choice here is: do we maintain multiple indices??
+        # TODO: DatetimeIndex Throwing freq error
+        # TODO: Sometimes, valid percent line 172 drops us in the constructor, and we are looking for a dti
+        if datetime_index is not None:
+            self.datetime_index = datetime_index
+            self.datetime_index = [datetime.strptime(dt, "%Y-%m-%dT%H:%M:%SZ") for dt in datetime_index]
 
-        # TODO: Try/Catch for string or something?
-        print("Stationality of {0}".format(series))
+            # for dt in datetime_index:
+            #     datetime.strptime(dt, "%Y-%m-%dT%H:%M:%SZ")
 
-        values = self._obj[series].values
+            # for dt in datetime_index:
+            #     datetime.strftime()
 
-        # ADF
-        # Bad unpack, also lots linting errors?
-        # https://www.statsmodels.org/dev/generated/statsmodels.tsa.stattools.adfuller.html
-        result = {}
-        adf_result = adfuller(values)
+            # self.datetime_index = Series(datetime_index)
+            # if isinstance(self.datetime_index[0], datetime):
+            #     print("it is")
+            # self.datetime_index_index = None
 
-        result['adf'] = adf_result[0]
-        result['pvalue'] = adf_result[1]
-        result['usedlag'] = adf_result[2]
-        result['nobs'] = adf_result[3]
-        result['values'] = adf_result[4]
-        result['icbest'] = adf_result[5]
-        if len(adf_result) > 6:
-            result['resstore'] = adf_result[6]  # Optional
+        self.categorical_features = categorical_features
 
-        # print('ADF Statistic: %f' % result['adf'])
-        # print('p-value: %f' % result['pvalue'])
-        # print('Critical Values:')
-        # for key, value in result['values'].items():
-        #     print('\t%s: %.3f' % (key, value))
-        # print()
+        # Sooo... everything before or after super? Mixx? -> what can be before, should be before, reduce deps
+        super(TimeSeriesSample, self).__init__(*args, **kwargs)
 
-        # print('ADF Statistic: %f' % adf_result[0])
-        # print('p-value: %f' % adf_result[1])
-        # print('Critical Values:')
-        # for key, value in adf_result[4].items():
-        #     print('\t%s: %.3f' % (key, value))
-        # print()
+        if valid_percent is not None:
+            self.valid_split(valid_percent)
 
-        # KPSS
-        # kpss_result = kpss_test(values)
+        # Checks
+        # TODO: Easier to just check the super, but validating args will cause more efficient faulure
+        # if data.index is None and index is None:
+        #     raise TypeError("Dataframe needs an index!")
+        #
+        # if not isinstance(base.index[0], datetime):
+        #         raise TypeError("Index must be datetime")
+        #
+        # # # TODO: Right now, features are either "categorical" or not. What other classifications are needed?
+        # if categorical_features is not None:
+        #     self.categorical_features = categorical_features
+        # if not isinstance(base.index[0], datetime):
+        #         raise TypeError("Index must be datetime")
+        # May need to raise this
+        # except IndexError:
+        #     raise IndexError("Index series as nothing at [0]!")
+
+
+        # OLD
+        # At first, I tried to parse in constructor. Now I am just checking
+        # Set the index
+        # if index_key is not None:
+        #     try:
+        #         index_series = self.base[index_key]
+        #     except KeyError:
+        #         raise KeyError("Index \"{0}\" not found!".format(index_key))
+        #
+        #     self.base.set_index(index_series, inplace=True) # TODO: Do we drop the "index" series?
+        #
+        # # Datetime Check
+        # if not isinstance(self.base.index[0], datetime):
+        #     try:
+        #         # index_series = self.base.index.apply(lambda x: datetime.strptime(x, date_fmt_str))  # Apply
+        #         new_index = [datetime.strptime(dt, date_fmt_str) for dt in self.base.index]
+        #         self.base.set_index(new_index)
+        #         # TODO: KeyError: datetime.datetime(2012, 4, 13, 0, 0)
+        #
+        #     except TypeError:
+        #         raise TypeError("Cannot parse datetime index at \"{0}\".".format(index_key))
+        #     except IndexError:
+        #         raise IndexError("Index series as nothing at [0]!")
+        #
+        #     self.base.set_index(index_series, inplace=True) # TODO: Do we drop the "index" series?
+        #
+
+
+    def valid_split(self, percent):
+        """
+        Splits off last valid_percent of the data to a validation set. Percent will come from last index of the
+        array.
+        """
+
+        if self.validation_set is not None:
+            pass  # TODO: Check for percent/base_valid? then rejoin?
+
+        size = len(self.index)
+
+        if percent >= 100 or percent <= 0:
+            raise ValueError("{0} is not a valid percent for train/test split")
+
+        # TODO: Decimal check, or range check?
+        #  i.e. will a valid set ever be half a percent? And is it cool to do type checks?
+        if percent > 1:
+            factor = (100 - percent) / 100
+        else:
+            factor = (1 - percent) / 100
+
+        split_index = int(size * factor)
+
+        self.validation_split_index = split_index
+        self.validation_set = self[split_index:]
+
+        drop_array = [i for i in range(split_index, size)]  # Debug, maybe remove
+        # drop_array = [self[i] for i in range(split_index, size)]
+
+        self.drop(drop_array, inplace=True)
+        # self.drop([i for i in range(split_index, size)], inplace=True)
+
+    # TODO: Decorators: Apply on full set vs train/test, apply on quantitative/vs cat/qual
+    # Decorator funcs?? For splitting and rejoining, if necessary.
+    # def _rejoin(self):
+    #     self.train_test_split_index = len(self.base)
+    #     self.base = self.base + self.base_valid
+    #
+    # def _resplit(self):
+    #     self.base, self.base_valid = self.base[:self.train_test_split_index], self.base[self.train_test_split_index:]
+    #
+    # # TODO: Want to make a wrapper that applies new features, or feature transforms, over BOTH train and test
+    # @staticmethod
+    # def across_splits(func):
+    #     # TODO: @functools.wraps(func)
+    #     def wrapper(*args, **kwargs):
+    #         # self._rejoin()
+    #
+    #         func()
+    #
+    #         # self._resplit()
+    #
+    #     return wrapper
+    #
+    # @across_splits
+    # def test_wrap_unwrap(self):
+    #     print("base: {0}", len(self.base))
+    #     print("base_valid: {0}", len(self.base_valid))
+
+    # Decomposition
+    # TODO: Centralize the decompose, with a fixed set of attributes to decompose to?
+    #  or just seasonal_decompose wrapper?
+    def decompose(self, series):
+        # TODO: maybe decmpose-specific suffixes?
+        period = 144  # Day
+        # period = 1008 # Month
+
+        two_side = True
+        # two_side=False
+
+        # model = 'additive'
+        model = 'multiplicitive'
+
+        result = seasonal_decompose(self.base[series].values, model=model, two_sided=two_side, freq=period)
+        # # Cut off the NaNa on either side, from Moving Average loss
+        # start_gap = period
+        # end_gap = len(result.resid) - period
+
+        # observed = result.observed[start_gap:end_gap]
+        # residual = result.resid[start_gap:end_gap]
+
+        # r_sqr = self.residual(observed, residual)
+
+        # print(r_sqr)
 
         return result
 
+    # ARIMA
+    def generate_arima(self):
+        pass
 
+    # Util
+    @staticmethod
+    def calc_r_sqr(observed, residual):
+        """Calculate the r_sqr from an observed set and residual set."""
+        ss_res = sum([(e * e) for e in residual])
 
+        y_bar = sum(observed) / len(observed)
+        ss_tot = sum([((y - y_bar) * (y - y_bar)) for y in observed])
 
+        r_sqr = 1 - (ss_res / ss_tot)
 
+        return r_sqr
+
+    def print(self):
+        print(self.tail())
+        print("Length: {0}".format(len(self)))
+        # print(self.train_test_split_index)
+        print("Categorical Features: {0}".format(self.categorical_features))

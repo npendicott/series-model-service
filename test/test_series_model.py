@@ -1,9 +1,13 @@
 import unittest
 
-from pandas import DataFrame
-from model.series_model import TimeSeriesModelAccessor
-
+# I wish I could keep these tests at the module level, but the import statements are breaking
+from model import series_sample
+from model.series_model import TimeSeriesModel
 import json
+
+# TODO: Is this bad? To have to import the test_target's dependencies?
+import pandas
+from datetime import datetime
 
 
 # TODO: Comment tests
@@ -24,51 +28,24 @@ class TestSeriesSample(unittest.TestCase):
 
             values = result_series['values']
             data = [value[1:] for value in values]
-            timestamps = [value[0] for value in values]
+            index = [value[0] for value in values]
 
-            return table, timestamps, columns, data
+            return table, columns, index, data
 
     def init_test_sample(self):
-        table, timestamps, columns, data = self.parse_test_data()
+        table, columns, index, data = self.parse_test_data()
 
-        frame = DataFrame(data=data, columns=columns)
-        frame['timestamp'] = timestamps
-
-        return frame
+        sample = TimeSeriesSample(data=data, columns=columns,  # Super
+                                  datetime_index=index,
+                                  categorical_features=['cat', 'features'])  # RYO
+        return sample
 
     # Init tests
-    def test_init(self):
-        self.init_test_sample()
-
-        self.assertEqual(True, True, "T")
-
-    def test_index_fmt(self):
-        sample = self.init_test_sample()
-
-        sample.tsm.format_index()
-
-        # TODO: Index Checks
-        self.assertEqual(True, True)
-
-    # Stationality
-    def test_stationality_adf(self):
-        sample = self.init_test_sample()
-
-        sample.tsm.format_index()
-
-        result = sample.tsm.stationality('energy_mean')
-
-        expected = {
-            'adf': -0.0,
-            'pvalue': 0.958532086060056,
-            'usedlag': 9,
-            'nobs': 10,
-            'values': {'1%': -4.331573, '5%': -3.23295, '10%': -2.7487},
-            'icbest': -615.9593774504112
-        }
-
-        self.assertDictEqual(result, expected)
-
+    # def test_init(self):
+    #     test_series_sample = self.init_test_sample()
+    #
+    #     self.assertEqual(True, True, "T")
+    #
     # # Train/Test Split Checks
     # def test_train_test_split_result_size(self):
     #     sample = self.init_test_sample()
@@ -97,17 +74,6 @@ class TestSeriesSample(unittest.TestCase):
     #
     #     self.assertIsInstance(first_index, datetime)
     #
-
-if __name__ == "__main__":
-    tests = TestSeriesSample()
-
-    sample = tests.init_test_sample()
-
-    sample.tsm.format_index()
-
-    result = sample.tsm.stationality('energy_mean')
-
-    print()
 
 
 
