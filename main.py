@@ -45,9 +45,10 @@ if __name__ == "__main__":
     # PROD
     service = EnergyService()
 
-    table, timestamps, columns, data = service.sample_data('MAC000246', '2012-04-12 10:30:00.0000000', '2012-05-12 10:30:00.0000000')
+    table, timestamps, lables, data = service.daily_reading("MAC000246", "2011-04-12 10:30:00.0000000", "2012-04-12 10:30:00.0000000")
+    # table, timestamps, columns, data = service.sample_data('MAC000246', '2012-04-12 10:30:00.0000000', '2012-05-12 10:30:00.0000000')
 
-    sample = DataFrame(data=data, columns=columns)
+    sample = DataFrame(data=data, columns=lables)
     sample['timestamp'] = timestamps
 
     print(sample.head())
