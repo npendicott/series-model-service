@@ -40,11 +40,13 @@ class TimeSeriesSampleAccessor:
     @staticmethod
     def _validate(obj):
         # TODO: Validate MultiIndex structure
-        if not isinstance(obj.index, MultiIndex):
+        # if not isinstance(obj.index, MultiIndex):
+        if not isinstance(obj.index, DatetimeIndex):
             if 'timestamp' not in obj.columns:
                 raise TypeError("Index must be correctly formatted or contain a 'timestamp' column.")
 
-    def format_index(self):
+    def format_index(self, ):
+        """Sets the index"""
         datetime_index_key = 'timestamp'  # TODO: Some object for 'model_keys'
 
         timestamps = [Timestamp.strptime(ts, self.INFLUX_TS_FMT) for ts in self._obj[datetime_index_key]]
@@ -83,7 +85,7 @@ class TimeSeriesSampleAccessor:
         result['nobs'] = adf_result[3]
         result['values'] = adf_result[4]
         result['icbest'] = adf_result[5]
-        if len(adf_result) > 6:
+        if len(adf_result) > 6:  # how to do this on dict init?
             result['resstore'] = adf_result[6]  # Optional
 
         # print('ADF Statistic: %f' % result['adf'])
@@ -114,11 +116,11 @@ class TimeSeriesSampleAccessor:
 
         result = quick_autocorr(values)
 
-        print("Autocorrelation of {0}".format(series))
-
-        print("Quick:")
-        print(result)
-        print()
+        # print("Autocorrelation of {0}".format(series))
+        #
+        # print("Quick:")
+        # print(result)
+        # print()
 
         # TODO: Autocorr stepdown/degree. Take autocorr of resid?
 

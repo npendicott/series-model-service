@@ -43,7 +43,6 @@ class EnergyService:
 
         # Requests
         def daily_reading(self, mac_id, start_date, end_date):
-
             headers = {'mac-id': mac_id}
             query = {'start': start_date,
                      'end': end_date}
@@ -54,7 +53,14 @@ class EnergyService:
             return self.parse_response(res)
 
         def hhourly_reading(self, mac_id, start_date, end_date):
-            pass
+            headers = {'mac-id': mac_id}
+            query = {'start': start_date,
+                     'end': end_date}
+
+            req_url = '{0}/readings/hhourly'.format(self.ENERGY_URL)
+            res = requests.get(req_url.format(), headers=headers, params=query)
+
+            return self.parse_response(res)
 
         # OLD
         # def sample_data(self, mac_id, start_date, end_date):

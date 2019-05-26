@@ -7,6 +7,15 @@ import json
 import os
 
 
+
+# TODO: Figure out Index
+#   Only need MultiIndex if I can't split like [x:y]
+#   I could either extract from some internal Series w/ a key and fmt string, or take external
+
+# TODO: Clean up the junk
+
+# TODO: EnergyService probably needs a look
+
 def parse_test_data():
     test_data_path = './test/test_data.json'
     with open(test_data_path) as json_file:
@@ -48,9 +57,12 @@ if __name__ == "__main__":
     table, timestamps, lables, data = service.daily_reading("MAC000246", "2011-04-12 10:30:00.0000000", "2012-04-12 10:30:00.0000000")
     # table, timestamps, columns, data = service.sample_data('MAC000246', '2012-04-12 10:30:00.0000000', '2012-05-12 10:30:00.0000000')
 
+    # table, timestamps, lables, data = service.hhourly_reading("MAC000246", "2011-04-12 10:30:00.0000000", "2012-04-12 10:30:00.0000000")
+
     sample = DataFrame(data=data, columns=lables)
     sample['timestamp'] = timestamps
 
+    print(sample.describe())
     print(sample.head())
 
     # TEST
