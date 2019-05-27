@@ -1,4 +1,4 @@
-from pandas import Timestamp, DatetimeIndex, MultiIndex, RangeIndex
+from pandas import DataFrame, Series, Timestamp, DatetimeIndex, MultiIndex, RangeIndex
 from pandas.api.extensions import register_dataframe_accessor
 
 from statsmodels.tsa.stattools import adfuller
@@ -18,49 +18,33 @@ from model.ryo_analysis import kpss_test, quick_autocorr
 class TimeSeriesSampleAccessor:
     """ Adding accessor for some common time series modeling tasks to pandas DataFrame.
 
-    IMPORTANT: So here, we are pretty much creating two indices, a datetime and an int range.
-    Pandas has some support for multiple indices, but the whole [0][1] is not my fave.
-    So, I guess the choice here is: do we maintain multiple indices??
-
-
     http://pandas.pydata.org/pandas-docs/stable/development/extending.html#extending-subclassing-pandas
     http://pandas.pydata.org/pandas-docs/stable/development/extending.html#extending-register-accessors
 
     This is a good example apparently: https://github.com/geopandas/geopandas/blob/master/geopandas/geodataframe.py
     """
-    INFLUX_TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
 
     # CREATE/CHECK DataFrame
-    # TODO: Is there a reason for a static validate?
-    #  Should I interanlize/automate the index validation?
     def __init__(self, pandas_obj):
-        self._validate(pandas_obj)
+        # self._validate(pandas_obj)
         self._obj = pandas_obj
 
+    # TODO: Update, also figure out when it needs to enter the picture
     @staticmethod
     def _validate(obj):
-        # TODO: Validate MultiIndex structure
-        # if not isinstance(obj.index, MultiIndex):
         if not isinstance(obj.index, DatetimeIndex):
             if 'timestamp' not in obj.columns:
                 raise TypeError("Index must be correctly formatted or contain a 'timestamp' column.")
 
-    def format_index(self, ):
-        """Sets the index"""
+    # Extended methods
+    def format_index(self, index, time_fmt):
+        """Sets the index."""
         datetime_index_key = 'timestamp'  # TODO: Some object for 'model_keys'
 
-        timestamps = [Timestamp.strptime(ts, self.INFLUX_TS_FMT) for ts in self._obj[datetime_index_key]]
-        timestamp_index = DatetimeIndex(timestamps)
-        # print(timestamp_index)
+        if isinstance(index[0], Timestamp):
+            index = [Timestamp.strptime(ts, time_fmt) for ts in self._obj[datetime_index_key]]
+        timestamp_index = DatetimeIndex(index)
         self._obj.set_index(timestamp_index, inplace=True)
-
-        # Dual index
-        # int_index = self._obj.index
-        # self._obj.set_index([int_index, timestamp_index], inplace=True)
-
-        # Clean up
-        # TODO: Where does the timestamp column go? Getting a KeyError
-        # self._obj.drop(datetime_index_key, inplace=True)
 
     # Diagnostics
     # Could use @property and a cache in the object to save time, if repeated calls across
@@ -71,7 +55,10 @@ class TimeSeriesSampleAccessor:
         # TODO: Try/Catch for string or something?
         print("Stationality of {0}".format(series))
 
-        values = self._obj[series].values
+        values = self._obj[series]
+        if isinstance(values[0], str):
+            values = Series([float(val) for val in values])
+            # TODO: Sometimes stuff comes out of this pd as str, don't want to manualy cast
 
         # ADF
         # Bad unpack, also lots linting errors?
@@ -113,6 +100,10 @@ class TimeSeriesSampleAccessor:
         """
 
         values = self._obj[series].values
+        if isinstance(values[0], str):
+            values = Series([float(val) for val in values])
+            # TODO: Sometimes stuff comes out of this pd as str, don't want to manualy cast, same as above
+
 
         result = quick_autocorr(values)
 
@@ -127,7 +118,7 @@ class TimeSeriesSampleAccessor:
         return result
 
     # Creature Features
-    def day_of_week_class(self):
+    def day_of_week_class(self, inplace=True):
         """Add series to dataframe for a day_of_week_class classification."""
         # # This func is for labels if needed
         # def get_day(date):
@@ -150,11 +141,12 @@ class TimeSeriesSampleAccessor:
         # print(len(sub_frame))
         day_of_week_class = [ts.weekday() for ts in self._obj.index]
 
-        return day_of_week_class
         # self.append(())
         # dows = Series(data=[datetime.weekday(ts) for ts in self.datetime_index], name='day_of_week_class')
         # self.append(dows)
         # self.['day_of_week_class_label'] = [datetime.weekday(ts) for ts in self..values]
+
+        return day_of_week_class
 
     # def weekend_weekday_class(self):
     #     """Generate class for weekend_weekday_class. 0 is weekday."""

@@ -8,6 +8,7 @@ import json
 
 # TODO: Comment tests
 class TestSeriesSample(unittest.TestCase):
+    INFLUX_TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
 
     # Setup
     @staticmethod
@@ -33,9 +34,9 @@ class TestSeriesSample(unittest.TestCase):
         table, timestamps, columns, data = self.parse_test_data()
 
         frame = DataFrame(data=data, columns=columns)
-        frame['timestamp'] = timestamps
+        # frame['timestamp'] = timestamps
 
-        return frame
+        return frame, timestamps
 
     # Tests
     def test_init(self):
@@ -44,17 +45,17 @@ class TestSeriesSample(unittest.TestCase):
         self.assertEqual(True, True, "T")
 
     def test_index_fmt(self):
-        sample = self.init_test_sample()
+        sample, timestamps = self.init_test_sample()
 
-        sample.tss.format_index()
+        sample.tss.format_index(timestamps, self.INFLUX_TS_FMT)
 
         self.assertEqual(type(sample.index), DatetimeIndex, "msg")
         self.assertEqual(type(sample.index[0]), Timestamp, "msg")
 
     def test_stationality_adf(self):
-        sample = self.init_test_sample()
+        sample, timestamps = self.init_test_sample()
 
-        sample.tss.format_index()
+        sample.tss.format_index(timestamps, self.INFLUX_TS_FMT)
 
         result = sample.tss.stationality('energy_mean')
 
@@ -102,17 +103,4 @@ class TestSeriesSample(unittest.TestCase):
     #
     #     self.assertIsInstance(first_index, datetime)
     #
-
-if __name__ == "__main__":
-    tests = TestSeriesSample()
-
-    sample = tests.init_test_sample()
-
-    sample.tss.format_index()
-
-    result = sample.tss.stationality('energy_mean')
-
-    print()
-
-
 

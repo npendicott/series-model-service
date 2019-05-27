@@ -6,7 +6,7 @@ from model.series_sample import TimeSeriesSampleAccessor
 import json
 import os
 
-
+INFLUX_TS_FMT = "%Y-%m-%dT%H:%M:%SZ"
 
 # TODO: Figure out Index
 #   Only need MultiIndex if I can't split like [x:y]
@@ -37,15 +37,9 @@ def parse_test_data():
 
 def init_test_sample():
     table, timestamps, columns, data = parse_test_data()
-    # table, columns, index, data = parse_test_data()
 
     frame = DataFrame(data=data, columns=columns)
     frame['timestamp'] = timestamps
-
-    # sample = TimeSeriesSample(data=data, columns=columns,  # Super
-    #                           datetime_index=index,
-    #                           # valid_percent=20,
-    #                           categorical_features=['cat', 'features'])  # RYO
 
     return frame
 
@@ -54,10 +48,13 @@ if __name__ == "__main__":
     # PROD
     service = EnergyService()
 
-    table, timestamps, lables, data = service.daily_reading("MAC000246", "2011-04-12 10:30:00.0000000", "2012-04-12 10:30:00.0000000")
+    # London
+    # table, timestamps, lables, data = service.get_readings("daily", "MAC000246", "2011-04-12 10:30:00.0000000", "2012-04-12 10:30:00.0000000")
     # table, timestamps, columns, data = service.sample_data('MAC000246', '2012-04-12 10:30:00.0000000', '2012-05-12 10:30:00.0000000')
-
     # table, timestamps, lables, data = service.hhourly_reading("MAC000246", "2011-04-12 10:30:00.0000000", "2012-04-12 10:30:00.0000000")
+
+    # Solar
+    table, timestamps, lables, data = service.get_readings("control", "", "2015-04-15 18:00:00", "2015-04-15 19:16:18")
 
     sample = DataFrame(data=data, columns=lables)
     sample['timestamp'] = timestamps
@@ -65,78 +62,21 @@ if __name__ == "__main__":
     print(sample.describe())
     print(sample.head())
 
-    # TEST
-    # sample = init_test_sample()
 
-    sample.tss.format_index()
+    sample.tss.format_index(timestamps, INFLUX_TS_FMT)
 
     subsample = sample[2:4]
     print(len(subsample))
 
     sample.tss.day_of_week_class()
 
-    stationality = sample.tss.stationality('energy_mean')
+    # stationality = sample.tss.stationality('energy_mean')
+    #
+    # auto_corr = sample.tss.autocorrelation('energy_mean')
 
-    auto_corr = sample.tss.autocorrelation('energy_mean')
+    stationality = sample.tss.stationality('power')
 
+    auto_corr = sample.tss.autocorrelation('power')
+
+    print(auto_corr)
     print()
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-    #
-    #
-    #
-    # service = EnergyService()
-    # # res_frame = service.sample_data('MAC000246', '2012-04-12 10:30:00.0000000', '2012-07-12 10:30:00.0000000')
-    # table, columns, index, data = service.sample_data('MAC000246', '2012-04-12 10:30:00.0000000', '2012-07-12 10:30:00.0000000')
-    #
-    # # frame = DataFrame(data=res_frame)
-    # #frame.head()
-    # #'2012-04-13T00:00:00Z'
-    #
-    # sample = TimeSeriesSample(data=data,  columns=columns,  # Super
-    #                           datetime_index=index,
-    #                           # valid_percent=20,
-    #                           categorical_features=['cat', 'features'])  # RYO
-    #
-    # print("Initial")
-    # sample.print()
-    # # print(len(sample))
-    # # print(sample.tail())
-    # # print(sample.train_test_split_index)
-    # # print(sample.categorical_features)
-    # # print(sample.validation_set)
-    #
-    #
-    # sample.valid_split(20)
-    # # sample.weekend_weekday_class()
-    #
-    # print("Post Split")
-    # sample.print()
-    # # print(len(sample))
-    # # print(sample.tail())
-    # # print(sample.train_test_split_index)
-    # # print(sample.categorical_features)
-    # # print(len(sample.validation_set))
-    #
-    #
-    # print()
-    #
