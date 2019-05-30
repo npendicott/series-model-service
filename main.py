@@ -3,6 +3,9 @@ from data.energy_service import EnergyService
 from pandas import DataFrame
 from model.series_sample import TimeSeriesSampleAccessor
 
+# Schema
+from data.schemas.influx_schema import DailyReadingSchema, HHourlyReadingSchema, SolarControlSchema, SolarPandOSchema
+
 import json
 import os
 
@@ -49,19 +52,20 @@ if __name__ == "__main__":
     service = EnergyService()
 
     # London
-    # table, timestamps, lables, data = service.get_readings("daily", "MAC000246", "2011-04-12 10:30:00.0000000", "2012-04-12 10:30:00.0000000")
+    res = service.get_readings("daily", "MAC000246", "2011-04-12 10:30:00.0000000", "2012-04-12 10:30:00.0000000")
     # table, timestamps, columns, data = service.sample_data('MAC000246', '2012-04-12 10:30:00.0000000', '2012-05-12 10:30:00.0000000')
     # table, timestamps, lables, data = service.hhourly_reading("MAC000246", "2011-04-12 10:30:00.0000000", "2012-04-12 10:30:00.0000000")
 
     # Solar
-    table, timestamps, lables, data = service.get_readings("control", "", "2015-04-15 18:00:00", "2015-04-15 19:16:18")
+    # table, timestamps, lables, data = service.get_readings("control", "", "2015-04-15 18:00:00", "2015-04-15 19:16:18")
+
+    table, timestamps, lables, data = service.parse_response(res, DailyReadingSchema())
 
     sample = DataFrame(data=data, columns=lables)
     sample['timestamp'] = timestamps
 
     print(sample.describe())
     print(sample.head())
-
 
     sample.tss.format_index(timestamps, INFLUX_TS_FMT)
 
