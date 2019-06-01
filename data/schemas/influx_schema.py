@@ -7,37 +7,37 @@ from marshmallow import Schema, fields, post_load, pprint
 # London
 class DailyReadingSchema(Schema):
     energy_count = fields.Int()
-    energy_max = fields.Decimal()
-    energy_mean = fields.Decimal()
-    energy_median = fields.Decimal()
-    energy_min = fields.Decimal()
-    energy_std = fields.Decimal()
-    energy_sum = fields.Decimal()
+    energy_max = fields.Float()
+    energy_mean = fields.Float()
+    energy_median = fields.Float()
+    energy_min = fields.Float()
+    energy_std = fields.Float()
+    energy_sum = fields.Float()
     mac_id = fields.Str()
 
 
 class HHourlyReadingSchema(Schema):
-    energy_median = fields.Decimal()
+    energy_median = fields.Float()
     mac_id = fields.Str()
 
 
 # Solar
 class SolarControlSchema(Schema):
-    current = fields.Decimal()
-    power = fields.Decimal()
-    volt_al = fields.Decimal()
-    volt_ce = fields.Decimal()
+    current = fields.Float()
+    power = fields.Float()
+    volt_al = fields.Float()
+    volt_ce = fields.Float()
 
 
 class SolarPandOSchema(Schema):
-    current = fields.Decimal()
-    current_adj = fields.Decimal()
-    power = fields.Decimal()
-    power_adj = fields.Decimal()
-    volt_ce = fields.Decimal()
-    volt_ce_adj = fields.Decimal()
-    volt_sp = fields.Decimal()
-    volt_sp_adj = fields.Decimal()
+    current = fields.Float()
+    current_adj = fields.Float()
+    power = fields.Float()
+    power_adj = fields.Float()
+    volt_ce = fields.Float()
+    volt_ce_adj = fields.Float()
+    volt_sp = fields.Float()
+    volt_sp_adj = fields.Float()
 
 
 # class SolarControl(object):

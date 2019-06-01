@@ -46,7 +46,7 @@ class EnergyService:
             timestamps.append(value[0])
             data.append(validate((value[1:])))  # drop index val and validate
 
-        [pprint(record) for record in data]
+        # [pprint(record) for record in data]
         return table, timestamps, lables, data
 
     # Requests
